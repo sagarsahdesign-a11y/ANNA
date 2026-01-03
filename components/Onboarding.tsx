@@ -10,7 +10,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
   const slides = [
     {
-      title: "ANNA - Personalized Tracking Made Easy",
+      title: "ANNA - An AI-Powered Food & Health Tracking App",
       description: "Log your meals, track activities, steps, weight, BMI, and monitor hydration with tailored insights just for you.",
       image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80" // Salad/Healthy food
     },
@@ -35,23 +35,23 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-brand-500 relative overflow-hidden">
+    <div className="flex flex-col h-screen bg-dark-900 relative overflow-hidden text-white">
       {/* Background Image Area (Top Half) */}
-      <div className="h-[55%] relative">
+      <div className="h-[60%] relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-dark-900/50 z-10" />
         <img 
             src={slides[step].image} 
             alt="Onboarding" 
             className="w-full h-full object-cover"
         />
-        {/* Decorative branding overlay or status bar placeholder could go here */}
       </div>
 
       {/* Content Area (Bottom Half with Curve) */}
-      <div className="flex-1 bg-dark-900 rounded-t-[40px] -mt-10 relative z-10 flex flex-col p-8 pb-10">
+      <div className="flex-1 bg-dark-900 rounded-t-[32px] -mt-8 relative z-20 flex flex-col p-6 pb-8">
         
         {/* Text Content */}
-        <div className="flex-1 flex flex-col items-center justify-center text-center mt-6">
-          <h2 className="text-3xl font-bold text-white mb-4 leading-tight">
+        <div className="flex-1 flex flex-col items-center justify-center text-center mt-2">
+          <h2 className="text-3xl font-bold text-white mb-4 leading-tight px-2">
             {slides[step].title}
           </h2>
           <p className="text-gray-400 text-sm leading-relaxed px-4">
@@ -60,7 +60,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
         </div>
 
         {/* Indicators */}
-        <div className="flex justify-center gap-2 mb-8">
+        <div className="flex justify-center gap-2 mb-8 mt-auto">
           {slides.map((_, i) => (
             <div 
               key={i} 

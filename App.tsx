@@ -11,6 +11,7 @@ import ProfileSetup from './components/ProfileSetup';
 import Tracker from './components/Tracker';
 import Insights from './components/Insights';
 import Account from './components/Account';
+import Logo from './components/Logo';
 import { supabase } from './supabaseClient';
 import { AppView, User, AnalysisResult } from './types';
 import { analyzeFoodImage } from './services/geminiService';
@@ -134,7 +135,7 @@ const App: React.FC = () => {
   if (view === 'SPLASH') {
     return (
       <div className="fixed inset-0 bg-brand-500 flex flex-col items-center justify-center z-50">
-        <img src="/logo.png" alt="ANNA" className="w-32 h-32 rounded-3xl animate-bounce shadow-xl object-contain bg-dark-900" />
+        <Logo className="w-32 h-32 animate-bounce shadow-2xl" />
         <h1 className="text-dark-900 text-3xl font-black mt-6 tracking-[0.2em]">ANNA</h1>
         <Loader2 className="mt-8 animate-spin text-dark-900" />
       </div>

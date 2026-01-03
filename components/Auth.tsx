@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { Mail, Lock, Loader2, ArrowLeft, Eye, EyeOff, Facebook, CheckCircle, Key, Smartphone, ShieldCheck } from 'lucide-react';
+import Logo from './Logo';
 
 interface AuthProps {
   onLoginSuccess: () => void;
@@ -243,7 +244,7 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
     return (
       <div className="min-h-screen bg-dark-900 flex flex-col p-6">
         <div className="flex-1 flex flex-col items-center justify-center">
-          <img src="/logo.png" alt="Logo" className="w-24 h-24 mb-8" />
+          <Logo className="w-24 h-24 mb-8" />
           <h1 className="text-3xl font-bold text-white mb-2">Let's Get Started!</h1>
           <p className="text-gray-400">Let's dive in into your account</p>
         </div>

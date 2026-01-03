@@ -3,36 +3,118 @@ import { supabase } from '../supabaseClient';
 import { MealLog } from '../types';
 import { 
   Plus, 
-  Camera, 
   Flame, 
   Footprints, 
-  Timer, 
   ChevronRight,
-  Dumbbell,
-  Utensils
+  ChevronLeft,
+  Bell,
+  Utensils,
+  Coffee,
+  Moon,
+  Sun
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Label } from 'recharts';
 
 interface DashboardProps {
     onStartScan: () => void;
 }
 
+interface MealSection {
+    id: string;
+    label: string;
+    icon: React.ElementType;
+    target: number;
+    range: number[];
+}
+
+const mealSections: MealSection[] = [
+    { id: 'breakfast', label: 'Breakfast', icon: Sun, target: 600, range: [5, 11] },
+    { id: 'lunch', label: 'Lunch', icon: Utensils, target: 800, range: [11, 16] },
+    { id: 'dinner', label: 'Dinner', icon: Moon, target: 800, range: [16, 22] },
+    { id: 'snack', label: 'Snacks', icon: Coffee, target: 200, range: [22, 5] }, 
+];
+
+const MacroItem = ({ label, current, target, color }: { label: string, current: number, target: number, color: string }) => (
+    <div className="flex flex-col items-center">
+        <div className="relative w-12 h-12 mb-1 flex items-center justify-center">
+            {/* Simple SVG Ring */}
+            <svg className="w-full h-full transform -rotate-90">
+                <circle cx="24" cy="24" r="20" stroke="#35383F" strokeWidth="4" fill="none" />
+                <circle 
+                    cx="24" cy="24" r="20" 
+                    stroke={color} 
+                    strokeWidth="4" 
+                    fill="none" 
+                    strokeDasharray={2 * Math.PI * 20}
+                    strokeDashoffset={2 * Math.PI * 20 * (1 - Math.min(current / target, 1))}
+                    strokeLinecap="round"
+                />
+            </svg>
+            <span className="absolute text-[10px] font-bold text-white">{current}g</span>
+        </div>
+        <span className="text-xs text-gray-400">{label}</span>
+    </div>
+);
+
+interface MealCardProps {
+    section: MealSection;
+    current: number;
+    onAdd: () => void;
+}
+
+const MealCard: React.FC<MealCardProps> = ({ section, current, onAdd }) => {
+    const Icon = section.icon;
+    
+    return (
+        <div className="bg-dark-800 rounded-3xl p-4 flex items-center gap-4 mb-3 border border-dark-700">
+            <div className="w-12 h-12 rounded-full bg-dark-700/50 flex items-center justify-center text-gray-400">
+                <Icon size={20} />
+            </div>
+            
+            <div className="flex-1">
+                <div className="flex justify-between items-center mb-1">
+                    <h4 className="font-bold text-white">{section.label}</h4>
+                    <div className="flex items-center gap-1">
+                        <span className="text-brand-500 font-bold">{current}</span>
+                        <span className="text-xs text-gray-500">/ {section.target} kcal</span>
+                    </div>
+                </div>
+                {/* Progress Bar */}
+                <div className="h-1.5 w-full bg-dark-900 rounded-full overflow-hidden">
+                    <div 
+                        className="h-full bg-brand-500 rounded-full"
+                        style={{ width: `${Math.min((current / section.target) * 100, 100)}%` }}
+                    />
+                </div>
+            </div>
+
+            <button 
+                onClick={onAdd}
+                className="w-8 h-8 rounded-full border-2 border-brand-500 flex items-center justify-center text-brand-500 hover:bg-brand-500 hover:text-dark-900 transition-colors"
+            >
+                <Plus size={16} strokeWidth={3} />
+            </button>
+        </div>
+    );
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ onStartScan }) => {
     const [logs, setLogs] = useState<MealLog[]>([]);
     const [dailyGoal, setDailyGoal] = useState<number>(2000);
     const [userProfile, setUserProfile] = useState<any>(null);
+    const [currentDate, setCurrentDate] = useState(new Date());
 
-    // Mock Data for production-ready look (since backend might not have this data yet)
-    const macros = {
-        protein: { current: 85, target: 140, color: '#C2F558' }, // Brand Green
-        carbs: { current: 120, target: 250, color: '#3b82f6' },  // Blue
-        fat: { current: 45, target: 70, color: '#f97316' }       // Orange
+    // Mock Data for "Burned" and "Macros" since we don't have full backend logic for them yet
+    const activityData = {
+        burned: 265,
+        walking: 100, // kcal
+        exercise: 165 // kcal
     };
 
-    const activity = {
-        steps: 6432,
-        caloriesBurned: 320,
-        activeMinutes: 45
+    const macroGoals = {
+        carbs: 250,
+        protein: 140,
+        fat: 90
     };
 
     useEffect(() => {
@@ -40,7 +122,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartScan }) => {
     }, []);
 
     const fetchData = async () => {
-        // 1. Get User Settings
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
             setUserProfile(user.user_metadata);
@@ -49,241 +130,195 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartScan }) => {
             }
         }
 
-        // 2. Get Today's Logs
-        // For demo purposes, fetching recent logs. In real app, filter by date.
         const { data } = await supabase
             .from('food_logs')
             .select('*')
-            .order('created_at', { ascending: false })
-            .limit(20);
+            .order('created_at', { ascending: false });
         
         if (data) setLogs(data);
     };
 
-    // Calculate totals
-    const consumedCalories = logs.reduce((acc, log) => {
-        const isToday = new Date(log.created_at).toDateString() === new Date().toDateString();
-        return isToday ? acc + log.total_calories : acc;
-    }, 0);
+    // --- Calculations ---
 
-    const remainingCalories = Math.max(0, dailyGoal - consumedCalories);
+    const getDailyLogs = (date: Date) => {
+        return logs.filter(log => new Date(log.created_at).toDateString() === date.toDateString());
+    };
+
+    const todaysLogs = getDailyLogs(currentDate);
+
+    const consumedCalories = todaysLogs.reduce((acc, log) => acc + log.total_calories, 0);
+    const remainingCalories = Math.max(0, dailyGoal - consumedCalories + activityData.burned);
     
-    // Group logs by time for the Food Log section
-    const groupedLogs = {
-        Breakfast: logs.filter(l => {
+    // Mock macro calculation based on calories (4-4-9 rule approx distribution for demo)
+    const currentMacros = {
+        carbs: Math.round(consumedCalories * 0.5 / 4),
+        protein: Math.round(consumedCalories * 0.3 / 4),
+        fat: Math.round(consumedCalories * 0.2 / 9)
+    };
+
+    const getMealCalories = (range: number[]) => {
+        const [start, end] = range;
+        return todaysLogs.filter(l => {
             const h = new Date(l.created_at).getHours();
-            return h >= 5 && h < 11;
-        }),
-        Lunch: logs.filter(l => {
-            const h = new Date(l.created_at).getHours();
-            return h >= 11 && h < 16;
-        }),
-        Dinner: logs.filter(l => {
-            const h = new Date(l.created_at).getHours();
-            return h >= 16 && h < 22;
-        }),
-        Snacks: logs.filter(l => {
-            const h = new Date(l.created_at).getHours();
-            return h >= 22 || h < 5;
-        })
+            if (start > end) return h >= start || h < end; // overnight
+            return h >= start && h < end;
+        }).reduce((acc, l) => acc + l.total_calories, 0);
     };
 
     // Ring Chart Data
-    const ringData = [
-        { name: 'Consumed', value: consumedCalories },
-        { name: 'Remaining', value: remainingCalories }
+    const totalBudget = dailyGoal + activityData.burned;
+    const chartData = [
+        { name: 'Remaining', value: remainingCalories, color: '#C2F558' }, // Brand Green
+        { name: 'Consumed', value: consumedCalories, color: '#35383F' }   // Dark Gray track
     ];
-    const ringColors = ['#C2F558', '#35383F']; // Brand Green, Dark Gray
 
     return (
         <div className="min-h-screen bg-dark-900 text-white pb-24">
             
-            {/* 1. HEADER */}
-            <header className="flex justify-between items-center px-6 pt-6 pb-2 bg-dark-900 sticky top-0 z-10">
-                <div className="flex items-center gap-2">
-                    <img src="/logo.png" alt="ANNA" className="w-8 h-8 rounded-lg bg-white/10 p-0.5" />
-                    <span className="text-xl font-bold tracking-widest">ANNA</span>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-dark-800 border border-dark-700 flex items-center justify-center overflow-hidden">
-                    {/* Placeholder Avatar */}
-                    <div className="w-full h-full bg-gradient-to-tr from-brand-600 to-brand-400 flex items-center justify-center font-bold text-dark-900">
-                        {userProfile?.full_name?.[0] || 'U'}
+            {/* 1. Top Bar */}
+            <div className="px-6 pt-6 pb-4 flex items-center justify-between sticky top-0 bg-dark-900 z-10">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden border border-gray-600">
+                        <img 
+                            src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&q=80" 
+                            alt="Profile" 
+                            className="w-full h-full object-cover"
+                        />
+                    </div>
+                    <div>
+                        <h2 className="text-sm text-gray-400">Welcome Back,</h2>
+                        <h1 className="text-lg font-bold text-white leading-none">{userProfile?.name?.split(' ')[0] || 'Andrew'}</h1>
                     </div>
                 </div>
-            </header>
+                <div className="w-10 h-10 rounded-full border border-dark-700 flex items-center justify-center text-white relative">
+                    <Bell size={20} />
+                    <div className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-dark-900"></div>
+                </div>
+            </div>
 
-            <div className="px-6 space-y-8 mt-4">
+            {/* 2. Date Navigation */}
+            <div className="flex items-center justify-center gap-4 mb-6">
+                <button 
+                    onClick={() => setCurrentDate(new Date(currentDate.setDate(currentDate.getDate() - 1)))}
+                    className="p-1 text-gray-500 hover:text-white"
+                >
+                    <ChevronLeft size={20} />
+                </button>
+                <div className="flex items-center gap-2 text-white font-medium">
+                    <span className="text-brand-500 px-1">Today,</span> 
+                    {currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </div>
+                <button 
+                    onClick={() => setCurrentDate(new Date(currentDate.setDate(currentDate.getDate() + 1)))}
+                    className="p-1 text-gray-500 hover:text-white"
+                >
+                    <ChevronRight size={20} />
+                </button>
+            </div>
 
-                {/* 2. CALORIE RING SUMMARY */}
-                <div className="bg-dark-800 rounded-3xl p-6 shadow-lg border border-dark-700 relative overflow-hidden">
-                    <div className="flex items-center justify-between">
-                        <div className="relative w-32 h-32 min-w-[128px] min-h-[128px]">
+            {/* 3. Main Calorie Card */}
+            <div className="px-6 mb-6">
+                <div className="bg-dark-800 rounded-[32px] p-6 relative overflow-hidden shadow-2xl border border-dark-700">
+                    
+                    {/* Main Stats Row */}
+                    <div className="flex items-center justify-between mb-8">
+                        {/* Eaten */}
+                        <div className="text-center">
+                            <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
+                                <div className="w-1.5 h-1.5 rounded-full bg-brand-500"></div> Eaten
+                            </div>
+                            <div className="text-2xl font-bold text-white">{consumedCalories}</div>
+                            <div className="text-xs text-gray-500">kcal</div>
+                        </div>
+
+                        {/* Center Ring */}
+                        <div className="relative w-40 h-40">
                              <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                     <Pie
-                                        data={ringData}
+                                        data={chartData}
                                         cx="50%"
                                         cy="50%"
-                                        innerRadius={50}
-                                        outerRadius={60}
+                                        innerRadius={65}
+                                        outerRadius={75}
                                         startAngle={90}
                                         endAngle={-270}
                                         dataKey="value"
                                         stroke="none"
-                                        cornerRadius={10}
+                                        cornerRadius={0}
                                     >
-                                        {ringData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={ringColors[index % ringColors.length]} />
-                                        ))}
+                                        <Cell fill="#C2F558" /> {/* Remaining */}
+                                        <Cell fill="#35383F" /> {/* Consumed/Track */}
                                     </Pie>
                                 </PieChart>
                             </ResponsiveContainer>
-                            {/* Center Icon */}
-                            <div className="absolute inset-0 flex items-center justify-center text-brand-500">
-                                <Flame size={24} fill="currentColor" />
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <span className="text-3xl font-bold text-white">{remainingCalories}</span>
+                                <span className="text-xs text-gray-400 font-medium">kcal left</span>
                             </div>
                         </div>
 
-                        <div className="flex-1 pl-6">
-                            <h3 className="text-gray-400 text-sm font-medium mb-1">Calories Remaining</h3>
-                            <div className="text-4xl font-bold text-white mb-2 tracking-tight">
-                                {remainingCalories}
+                        {/* Burned */}
+                        <div className="text-center">
+                             <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
+                                <div className="w-1.5 h-1.5 rounded-full bg-orange-500"></div> Burned
                             </div>
-                            <div className="text-sm text-gray-500 font-medium">
-                                <span className="text-brand-500 font-bold">{consumedCalories}</span> / {dailyGoal} kcal
-                            </div>
+                            <div className="text-2xl font-bold text-white">{activityData.burned}</div>
+                            <div className="text-xs text-gray-500">kcal</div>
                         </div>
                     </div>
-                </div>
 
-                {/* 3. MACRO TRACKING */}
-                <div>
-                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                        Nutrition <span className="text-xs font-normal text-gray-500 bg-dark-800 px-2 py-1 rounded-full">Today</span>
-                    </h3>
-                    <div className="grid grid-cols-3 gap-4">
-                        {[
-                            { label: 'Protein', ...macros.protein },
-                            { label: 'Carbs', ...macros.carbs },
-                            { label: 'Fat', ...macros.fat },
-                        ].map((m) => (
-                            <div key={m.label} className="bg-dark-800 p-4 rounded-2xl border border-dark-700">
-                                <div className="text-gray-400 text-xs font-medium mb-2">{m.label}</div>
-                                <div className="text-xl font-bold mb-3">{m.current}g</div>
-                                <div className="w-full bg-dark-900 rounded-full h-1.5 overflow-hidden">
-                                    <div 
-                                        className="h-full rounded-full transition-all duration-1000"
-                                        style={{ width: `${(m.current / m.target) * 100}%`, backgroundColor: m.color }}
-                                    />
-                                </div>
-                            </div>
-                        ))}
+                    {/* Macros Row */}
+                    <div className="grid grid-cols-3 gap-4 border-t border-dark-700 pt-6">
+                        <MacroItem label="Carbs" current={currentMacros.carbs} target={macroGoals.carbs} color="#C2F558" />
+                        <MacroItem label="Protein" current={currentMacros.protein} target={macroGoals.protein} color="#3b82f6" />
+                        <MacroItem label="Fat" current={currentMacros.fat} target={macroGoals.fat} color="#f97316" />
                     </div>
                 </div>
-
-                {/* 4. ACTIVITY TRACKER */}
-                <div>
-                    <div className="flex justify-between items-end mb-4">
-                        <h3 className="text-lg font-bold">Activity</h3>
-                        <span className="text-brand-500 text-sm font-medium cursor-pointer">Sync Device</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                        <div className="bg-dark-800 p-3 rounded-2xl border border-dark-700 flex flex-col items-center text-center">
-                            <div className="w-8 h-8 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center mb-2">
-                                <Footprints size={16} />
-                            </div>
-                            <span className="text-lg font-bold">{activity.steps}</span>
-                            <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Steps</span>
-                        </div>
-                        <div className="bg-dark-800 p-3 rounded-2xl border border-dark-700 flex flex-col items-center text-center">
-                            <div className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-500 flex items-center justify-center mb-2">
-                                <Flame size={16} />
-                            </div>
-                            <span className="text-lg font-bold">{activity.caloriesBurned}</span>
-                            <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Kcal</span>
-                        </div>
-                        <div className="bg-dark-800 p-3 rounded-2xl border border-dark-700 flex flex-col items-center text-center">
-                            <div className="w-8 h-8 rounded-full bg-purple-500/10 text-purple-500 flex items-center justify-center mb-2">
-                                <Timer size={16} />
-                            </div>
-                            <span className="text-lg font-bold">{activity.activeMinutes}</span>
-                            <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Mins</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 5. ACTION MENU */}
-                <div className="grid grid-cols-12 gap-3">
-                    <button 
-                        onClick={onStartScan}
-                        className="col-span-8 bg-brand-500 hover:bg-brand-400 text-dark-900 rounded-2xl p-4 flex items-center justify-center gap-3 transition-colors shadow-[0_0_20px_rgba(194,245,88,0.2)] group"
-                    >
-                        <div className="bg-dark-900/10 p-2 rounded-full group-hover:scale-110 transition-transform">
-                            <Camera size={24} />
-                        </div>
-                        <div className="text-left">
-                            <span className="block font-bold text-lg leading-none">Scan Food</span>
-                            <span className="text-xs font-medium opacity-70">AI Camera</span>
-                        </div>
-                    </button>
-                    
-                    <button className="col-span-4 bg-dark-800 border border-dark-700 hover:bg-dark-700 text-white rounded-2xl p-4 flex flex-col items-center justify-center gap-1 transition-colors">
-                        <Plus size={24} className="text-gray-400" />
-                        <span className="text-xs font-medium text-gray-400">Add Meal</span>
-                    </button>
-                    
-                    {/* Log Activity button usually less prominent in this layout, maybe consolidated or extra action */}
-                </div>
-
-                {/* 6. TODAY'S FOOD LOG */}
-                <div className="pb-8">
-                    <h3 className="text-lg font-bold mb-4">Today's Meals</h3>
-                    <div className="space-y-6">
-                        {Object.entries(groupedLogs).map(([mealType, mealLogs]) => (
-                            <div key={mealType}>
-                                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 pl-1 flex items-center gap-2">
-                                    {mealType}
-                                    <div className="h-px flex-1 bg-dark-800"></div>
-                                </h4>
-                                {mealLogs.length === 0 ? (
-                                    <div className="border border-dashed border-dark-700 rounded-xl p-4 text-center">
-                                        <p className="text-sm text-gray-600">No {mealType.toLowerCase()} logged</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {mealLogs.map(log => (
-                                            <div key={log.id} className="bg-dark-800 p-3 rounded-xl border border-dark-700 flex items-center gap-4">
-                                                <div className="w-12 h-12 bg-dark-900 rounded-lg overflow-hidden flex-shrink-0">
-                                                    {log.image_url ? (
-                                                        <img src={log.image_url} alt="Meal" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-gray-700">
-                                                            <Utensils size={16} />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <h5 className="font-bold text-white truncate">
-                                                        {log.items?.map(i => i.name).join(', ') || 'Unknown Meal'}
-                                                    </h5>
-                                                    <p className="text-xs text-gray-500">
-                                                        {new Date(log.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} • {Math.round(log.total_calories / 4)}g protein
-                                                    </p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="block font-bold text-brand-500">{log.total_calories}</span>
-                                                    <span className="text-xs text-gray-500">kcal</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
             </div>
+
+            {/* 4. Activity Cards */}
+            <div className="px-6 mb-8">
+                <div className="flex gap-4">
+                     {/* Walking */}
+                    <div className="flex-1 bg-dark-800 rounded-3xl p-4 flex items-center gap-4 border border-dark-700">
+                        <div className="w-10 h-10 rounded-full bg-brand-500/10 text-brand-500 flex items-center justify-center">
+                            <Footprints size={20} />
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-400 mb-0.5">Walking</p>
+                            <p className="text-lg font-bold text-white">{activityData.walking} <span className="text-xs font-normal text-gray-500">kcal</span></p>
+                        </div>
+                    </div>
+                    {/* General Activity */}
+                    <div className="flex-1 bg-dark-800 rounded-3xl p-4 flex items-center gap-4 border border-dark-700 relative">
+                         <div className="w-10 h-10 rounded-full bg-orange-500/10 text-orange-500 flex items-center justify-center">
+                            <Flame size={20} />
+                        </div>
+                         <div>
+                            <p className="text-xs text-gray-400 mb-0.5">Activity</p>
+                            <p className="text-lg font-bold text-white">{activityData.exercise} <span className="text-xs font-normal text-gray-500">kcal</span></p>
+                        </div>
+                        {/* Plus Button Overlay */}
+                         <button className="absolute -top-2 -right-2 w-8 h-8 bg-brand-500 rounded-full flex items-center justify-center text-dark-900 border-4 border-dark-900">
+                            <Plus size={16} strokeWidth={3} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* 5. Meal List */}
+            <div className="px-6">
+                 {mealSections.map((section) => (
+                    <MealCard 
+                        key={section.id} 
+                        section={section} 
+                        current={getMealCalories(section.range)}
+                        onAdd={onStartScan}
+                    />
+                 ))}
+            </div>
+
         </div>
     );
 };
