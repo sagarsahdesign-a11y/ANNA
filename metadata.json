@@ -1,0 +1,9 @@
+{
+  "name": "ANNA",
+  "description": "Intelligent nourishment. AI-powered food tracking for a balanced life.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
